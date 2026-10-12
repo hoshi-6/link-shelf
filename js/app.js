@@ -1,7 +1,11 @@
 // 画面の描画とイベント
 import * as S from './store.js';
-import { PALETTE, colorOf, hostOf, normalizeUrl, fetchMeta, screenshotUrl, createCropper } from './cover.js';
+import { PALETTE, colorOf, hostOf, normalizeUrl, fetchMeta, screenshotUrl, createCropper, braveUrl, isIOS } from './cover.js';
 import { createIdleTimer } from './idle.js';
+
+// 部品の読み込みに成功した印(index.html の再読み込みの安全策が見る)
+window.__appStarted = true;
+try { sessionStorage.removeItem('linkShelf.reloaded'); } catch { /* noop */ }
 
 const LEGACY_KEY = 'linkShelf.v1'; // ログイン機能より前の、端末内の本棚
 const PREFS_KEY = 'linkShelf.prefs';
@@ -208,9 +212,13 @@ function linkCard(link, showPath) {
   const card = el('div', 'card');
   const book = el('div', 'book');
   const a = el('a', 'cover');
-  a.href = link.url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
+  if (openInBrave()) {
+    a.href = braveUrl(link.url);
+  } else {
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  }
   a.setAttribute('aria-label', `${displayTitle(link)} を開く`);
   fillCover(a, link);
 
@@ -348,6 +356,27 @@ document.addEventListener('keydown', e => {
   setFab(false);
   setMenu(false);
 });
+
+// ---------- リンクを開くアプリ ----------
+
+// iPhone / iPad だけ、Brave で開くかどうかを選べる(最初はオン)。PC はブラウザ側の設定で行う
+const IOS = isIOS();
+const openInBrave = () => IOS && prefs.openInBrave !== false;
+
+function renderBraveSetting() {
+  $('braveBtn').hidden = !IOS;
+  $('braveNote').hidden = IOS;
+  $('braveBtn').setAttribute('aria-checked', String(openInBrave()));
+}
+
+$('braveBtn').addEventListener('click', () => {
+  prefs.openInBrave = !openInBrave();
+  savePrefs();
+  renderBraveSetting();
+  render();
+  toast(openInBrave() ? 'リンクを Brave で開きます' : 'リンクを Safari で開きます');
+});
+renderBraveSetting();
 
 // ---------- 検索・絞り込み・並び替え ----------
 

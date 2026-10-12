@@ -136,3 +136,15 @@ export function createCropper(frame, zoomInput, file) {
     img.src = src;
   });
 }
+
+// ---- リンクを開くアプリ ----
+
+// iPhone / iPad の Brave で開くためのリンク(Brave iOS の NavigationRouter が受け付ける形式)
+export function braveUrl(url) {
+  return 'brave://open-url?url=' + encodeURIComponent(url);
+}
+
+// iPadOS は PC と同じ UA を名乗るので、タッチ対応かどうかで見分ける
+export function isIOS(ua = navigator.userAgent, touchPoints = navigator.maxTouchPoints) {
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
+}

@@ -270,6 +270,11 @@
   .menu-pop button { display: flex; width: 100%; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: 8px; text-align: left; }
   .menu-pop button:hover { background: var(--surface-2); }
   .menu-pop svg { width: 20px; height: 20px; color: var(--ink-2); }
+  .menu-pop .grow { flex: 1; }
+  .switch { width: 40px; height: 24px; border-radius: 999px; background: var(--line); position: relative; flex: none; transition: background .15s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+  [aria-checked="true"] > .switch { background: var(--accent); }
+  [aria-checked="true"] > .switch::after { transform: translateX(16px); }
   .menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
   .menu-pop p { margin: 4px 12px 6px; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
 
@@ -501,6 +506,9 @@
       <button type="button" id="usersBtn" hidden><svg aria-hidden="true"><use href="#i-users"/></svg>ユーザー管理</button>
       <button type="button" id="pwBtn"><svg aria-hidden="true"><use href="#i-key"/></svg>パスワードを変更</button>
       <button type="button" id="logoutBtn"><svg aria-hidden="true"><use href="#i-logout"/></svg>ログアウト</button>
+      <hr>
+      <button type="button" id="braveBtn" role="switch" aria-checked="false" hidden><svg aria-hidden="true"><use href="#i-link"/></svg><span class="grow">リンクを Brave で開く</span><span class="switch" aria-hidden="true"></span></button>
+      <p id="braveNote" hidden>リンクを Brave で開くには、Brave を既定のブラウザにするか、リンク本棚を Brave で開いて使ってください。</p>
       <hr>
       <button type="button" id="backupBtn"><svg aria-hidden="true"><use href="#i-download"/></svg>バックアップを保存</button>
       <label class="file-btn" style="display:block">
@@ -739,6 +747,20 @@
 
 <div class="toast" id="toast" role="status"></div>
 
+<script>
+  // 更新直後に新旧のファイルが混ざって起動できなかったときは、1 回だけ読み込み直す
+  setTimeout(function () {
+    if (window.__appStarted) return;
+    try {
+      if (!sessionStorage.getItem('linkShelf.reloaded')) {
+        sessionStorage.setItem('linkShelf.reloaded', '1');
+        location.reload();
+        return;
+      }
+    } catch (e) { /* noop */ }
+    document.getElementById('loadingText').textContent = '読み込みに失敗しました。ページを再読み込みしてください';
+  }, 6000);
+</script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

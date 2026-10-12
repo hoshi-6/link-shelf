@@ -1,6 +1,6 @@
 // アプリのファイルだけをキャッシュする(ログインと本棚の表示には通信が必要)。
 // 更新がすぐ反映されるよう、通信できるときはネットワークを優先する。
-const CACHE = 'link-shelf-v3';
+const CACHE = 'link-shelf-v4';
 const FILES = [
   './',
   'index.html',
