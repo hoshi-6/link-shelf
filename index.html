@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>リンク本棚</title>
+<meta name="description" content="リンクを本の表紙のように並べて整理する本棚">
+<meta name="theme-color" content="#f5efe6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1815" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="リンク本棚">
+<style>
+  :root {
+    --bg: #f5efe6;
+    --surface: #fffdf9;
+    --surface-2: #ece4d8;
+    --ink: #2b2622;
+    --ink-2: #6b6158;
+    --line: #dcd2c4;
+    --accent: #a33a26;
+    --accent-ink: #ffffff;
+    --accent-soft: #f6e1da;
+    --star: #e0a100;
+    --danger: #b3261e;
+    --shadow: 0 1px 2px rgba(60, 40, 20, .12), 0 4px 12px rgba(60, 40, 20, .10);
+    --shadow-lift: 0 2px 4px rgba(60, 40, 20, .14), 0 10px 24px rgba(60, 40, 20, .16);
+    --radius: 6px;
+    --radius-lg: 16px;
+    --font: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1815;
+      --surface: #26221e;
+      --surface-2: #332d27;
+      --ink: #f1ebe3;
+      --ink-2: #b4aa9f;
+      --line: #423a32;
+      --accent: #e0765f;
+      --accent-ink: #1b1815;
+      --accent-soft: #4a2a22;
+      --star: #ffc53d;
+      --danger: #ff8a80;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 4px 12px rgba(0, 0, 0, .3);
+      --shadow-lift: 0 2px 4px rgba(0, 0, 0, .45), 0 10px 24px rgba(0, 0, 0, .4);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 var(--font);
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---------- ヘッダー ---------- */
+  .top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+    padding: max(8px, env(safe-area-inset-top)) 16px 8px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .title-row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .app-title { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; }
+  .app-title svg { width: 24px; height: 24px; color: var(--accent); }
+  .icon-btn {
+    display: inline-grid; place-items: center;
+    width: 44px; height: 44px; border: 0; border-radius: 50%;
+    background: transparent;
+  }
+  .icon-btn:hover { background: var(--surface-2); }
+  .icon-btn svg { width: 22px; height: 22px; }
+  .spacer { flex: 1; }
+
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin: 0; padding: 0; list-style: none; font-size: 14px; min-height: 36px; }
+  .crumbs li { display: flex; align-items: center; }
+  .crumbs li + li::before { content: "›"; color: var(--ink-2); padding: 0 2px; }
+  .crumbs li.first::before { content: none; }
+  .crumbs button {
+    border: 0; background: transparent; padding: 6px 8px; border-radius: 8px;
+    color: var(--ink-2); max-width: 12em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .crumbs button:hover { background: var(--surface-2); color: var(--ink); }
+  .crumbs li:last-child button { color: var(--ink); font-weight: 700; }
+  .crumbs .back { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; margin-right: 2px; }
+  .crumbs .back svg { width: 20px; height: 20px; }
+
+  .tools { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .search {
+    flex: 1; min-width: 0; position: relative;
+  }
+  .search svg { position: absolute; left: 12px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); color: var(--ink-2); pointer-events: none; }
+  .search input {
+    width: 100%; height: 44px; padding: 0 12px 0 38px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  }
+  .search input::placeholder { color: var(--ink-2); }
+  .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; flex: none; }
+  .seg button {
+    border: 0; background: transparent; height: 38px; min-width: 44px; padding: 0 12px; border-radius: 999px; font-size: 14px; color: var(--ink-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .seg .star { color: var(--star); }
+  .sort {
+    height: 44px; width: 44px; flex: none; position: relative;
+  }
+  .sort select {
+    position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;
+  }
+  .sort .icon-btn { pointer-events: none; }
+  .sort:focus-within .icon-btn { outline: 3px solid var(--accent); }
+
+  .status-line { font-size: 13px; color: var(--ink-2); margin: 16px 0 0; min-height: 21px; }
+
+  /* ---------- 本棚 ---------- */
+  main { padding: 0 16px calc(120px + env(safe-area-inset-bottom)); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 24px 16px;
+    margin-top: 8px;
+  }
+  @media (min-width: 640px) { .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 32px 24px; } }
+
+  .card { position: relative; min-width: 0; }
+  .cover {
+    position: relative; display: block; width: 100%; aspect-ratio: 2 / 3;
+    border-radius: 3px var(--radius) var(--radius) 3px;
+    overflow: hidden; background: var(--surface-2);
+    box-shadow: var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease;
+    border: 0; padding: 0; text-decoration: none; color: inherit;
+  }
+  /* 本の背(左端)の陰影 */
+  .cover::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, rgba(0,0,0,.22) 0, rgba(255,255,255,.18) 3px, rgba(0,0,0,0) 8px, rgba(0,0,0,0) 100%);
+  }
+  @media (hover: hover) { .cover:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); } }
+  .cover:active { transform: scale(.98); }
+  .cover img, .mini img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--surface); transition: opacity .25s ease; }
+  .cover img.pending, .mini img.pending { opacity: 0; }
+
+  .color-cover {
+    position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+    padding: 30% 10% 10% 14%; color: #fff; background: var(--c);
+  }
+  .color-cover::before {
+    content: ""; position: absolute; left: 14%; right: 10%; top: 8%; height: 2px; background: rgba(255,255,255,.45);
+    box-shadow: 0 5px 0 rgba(255,255,255,.25);
+  }
+  .color-cover .t {
+    font-weight: 800; line-height: 1.35; font-size: clamp(13px, 3.6vw, 16px);
+    display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all;
+    margin-top: 8px;
+  }
+  .color-cover .d { font-size: 11px; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid rgba(255,255,255,.4); padding-top: 4px; }
+  .loading-cover::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.18) 50%, transparent 70%);
+    background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+  .badge-btn {
+    position: absolute; width: 44px; height: 44px; border: 0; padding: 0; background: transparent;
+    display: grid; place-items: center; z-index: 2;
+  }
+  .badge-btn span {
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255, 253, 249, .92); color: #45413c; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    transition: transform .12s ease;
+  }
+  .badge-btn:active span { transform: scale(.88); }
+  .badge-btn svg { width: 18px; height: 18px; }
+  .fav { top: 0; right: 0; }
+  .fav[aria-pressed="true"] span { color: var(--star); background: #fffdf9; }
+  .fav[aria-pressed="true"] svg { fill: currentColor; }
+  .book { position: relative; }
+
+  .caption-row { display: flex; align-items: flex-start; gap: 2px; margin-top: 8px; }
+  .caption { flex: 1; min-width: 0; font-size: 13px; line-height: 1.45; font-weight: 600; padding-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all; }
+  /* 見た目は小さく、タップ領域は 44px 確保する */
+  .edit {
+    flex: none; width: 28px; height: 28px; margin: -8px -8px -8px 0; box-sizing: content-box; padding: 8px;
+    border: 0; background: transparent; color: var(--ink-2); border-radius: 50%; display: grid; place-items: center;
+  }
+  .edit svg { width: 18px; height: 18px; }
+  .edit:hover { color: var(--ink); }
+  .edit:hover svg { background: var(--surface-2); border-radius: 50%; box-shadow: 0 0 0 5px var(--surface-2); }
+  .sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* フォルダーの箱 */
+  .folder-box { background: var(--c); border-radius: var(--radius); overflow: visible; }
+  .folder-box::after { border-radius: var(--radius); background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(0,0,0,.12)); }
+  .folder-box .tab {
+    position: absolute; left: 0; top: -8px; width: 46%; height: 16px; background: var(--c);
+    border-radius: var(--radius) var(--radius) 0 0; filter: brightness(.85);
+  }
+  .folder-box .stack { position: absolute; left: 0; right: 0; top: 12%; height: 58%; }
+  .folder-box .mini {
+    position: absolute; top: 0; left: 50%; width: 52%; aspect-ratio: 2 / 3; border-radius: 2px 4px 4px 2px;
+    overflow: hidden; background: var(--surface-2); box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  }
+  .folder-box .mini:nth-child(1) { transform: translateX(-50%); z-index: 3; }
+  .folder-box .mini:nth-child(2) { transform: translateX(-88%) rotate(-8deg); z-index: 2; }
+  .folder-box .mini:nth-child(3) { transform: translateX(-12%) rotate(8deg); z-index: 1; }
+  .folder-box .mini .color-cover { padding: 10%; }
+  .folder-box .mini .color-cover::before { display: none; }
+  .folder-box .mini .color-cover .t { font-size: 10px; -webkit-line-clamp: 4; margin: 0; }
+  .folder-box .mini .color-cover .d { display: none; }
+  .folder-box .empty-icon { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); width: 40%; color: rgba(255,255,255,.55); }
+  .folder-box .count {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 10px; color: #fff; text-align: left;
+    font-size: 12px; font-weight: 700; line-height: 1.4;
+    background: linear-gradient(0deg, rgba(0,0,0,.35), rgba(0,0,0,0));
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .folder-box .count svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
+  .card.folder .caption::before { content: ""; }
+
+  .empty {
+    text-align: center; color: var(--ink-2); padding: 64px 16px; max-width: 360px; margin: 0 auto;
+  }
+  .empty svg { width: 72px; height: 72px; color: var(--line); }
+  .empty p { margin: 8px 0 0; }
+  .empty strong { color: var(--ink); display: block; font-size: 17px; }
+
+  /* ---------- ＋ボタン ---------- */
+  .fab-area { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom)); z-index: 20; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+  .fab {
+    width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink);
+    box-shadow: 0 4px 14px rgba(120, 40, 20, .35); display: grid; place-items: center; transition: transform .2s ease;
+  }
+  .fab svg { width: 28px; height: 28px; }
+  .fab[aria-expanded="true"] { transform: rotate(45deg); }
+  .fab-menu { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .fab-menu button {
+    display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 18px 0 14px; border: 0; border-radius: 999px;
+    background: var(--surface); box-shadow: var(--shadow-lift); font-weight: 700;
+    animation: pop .16s ease both;
+  }
+  .fab-menu button:nth-child(1) { animation-delay: .03s; }
+  .fab-menu svg { width: 22px; height: 22px; color: var(--accent); }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.96); } }
+  .scrim { position: fixed; inset: 0; z-index: 15; background: rgba(20, 14, 8, .25); }
+
+  .menu-pop {
+    position: absolute; right: 16px; top: 52px; z-index: 30; min-width: 220px; background: var(--surface); border-radius: 12px;
+    box-shadow: var(--shadow-lift); padding: 8px; border: 1px solid var(--line);
+  }
+  .menu-pop button { display: flex; width: 100%; align-items: center; gap: 10px; height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: 8px; text-align: left; }
+  .menu-pop button:hover { background: var(--surface-2); }
+  .menu-pop svg { width: 20px; height: 20px; color: var(--ink-2); }
+  .menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+  .menu-pop p { margin: 4px 12px 6px; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+
+  /* ---------- ダイアログ ---------- */
+  dialog {
+    border: 0; padding: 0; background: var(--surface); color: var(--ink);
+    width: min(520px, 100vw - 32px); max-height: calc(100dvh - 32px);
+    border-radius: var(--radius-lg); box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  dialog::backdrop { background: rgba(20, 14, 8, .45); }
+  @media (max-width: 639px) {
+    dialog {
+      width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      max-height: 92dvh;
+    }
+    dialog[open] { animation: sheet .22s ease; }
+    @keyframes sheet { from { transform: translateY(40px); opacity: .4; } }
+  }
+  dialog form { display: flex; flex-direction: column; max-height: inherit; }
+  .dlg-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 0 24px; }
+  .dlg-head h2 { margin: 0; font-size: 18px; flex: 1; }
+  .dlg-body { padding: 8px 24px 16px; overflow-y: auto; }
+  .dlg-foot {
+    display: flex; gap: 8px; align-items: center; padding: 12px 24px calc(16px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+  }
+  .field { margin-top: 16px; }
+  .field > label, .field > .label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .field .hint { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .text {
+    width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+  }
+  .text:focus { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 0; }
+  select.text { appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23887d72' stroke-width='2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .btn {
+    height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 700;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--danger); border-color: transparent; background: transparent; padding: 0 12px; }
+  .btn.danger.armed { background: var(--danger); color: #fff; }
+  .btn.block { width: 100%; justify-content: flex-start; text-align: left; display: flex; align-items: center; gap: 12px; height: auto; min-height: 56px; padding: 10px 18px; border-radius: 12px; }
+  .btn.block small { display: block; font-weight: 400; color: var(--ink-2); font-size: 12px; }
+  .btn.block.danger-solid { border-color: var(--danger); color: var(--danger); background: transparent; }
+
+  .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+  .choices label { position: relative; }
+  .choices input { position: absolute; opacity: 0; inset: 0; }
+  .choices span { display: grid; place-items: center; min-height: 44px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: center; line-height: 1.3; padding: 4px; }
+  .choices input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+  .choices input:focus-visible + span { outline: 3px solid var(--accent); }
+
+  .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+  .swatches label { position: relative; width: 44px; height: 44px; display: grid; place-items: center; }
+  .swatches input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .swatches span { width: 32px; height: 32px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); transition: transform .12s; }
+  .swatches input:checked + span { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--c); transform: scale(.92); }
+  .swatches input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+  .cover-edit { display: grid; grid-template-columns: 112px 1fr; gap: 16px; align-items: start; margin-top: 12px; }
+  .preview { width: 112px; }
+  .preview .cover { box-shadow: var(--shadow); }
+  .crop-wrap { display: grid; grid-template-columns: minmax(0, 200px) 1fr; gap: 16px; align-items: end; margin-top: 12px; }
+  .crop-frame { position: relative; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 4px; background: var(--surface-2); touch-action: none; cursor: grab; box-shadow: var(--shadow); }
+  .crop-frame:active { cursor: grabbing; }
+  .crop-img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
+  .crop-side { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .crop-side input[type=range] { width: 100%; accent-color: var(--accent); height: 44px; }
+  .file-btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; }
+  .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .file-btn svg { width: 20px; height: 20px; }
+
+  .note { font-size: 13px; color: var(--ink-2); margin: 8px 0 0; }
+  .delete-choices { display: grid; gap: 8px; margin-top: 16px; }
+  .delete-choices svg { width: 24px; height: 24px; flex: none; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translate(-50%, 16px); opacity: 0;
+    background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 999px; font-size: 14px; z-index: 50;
+    transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100vw - 32px); text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shelf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16M9 4v16M13.5 5l4 15"/><path d="M2 20h20"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3.5 16.5L7 20l3.5-3.5M17 20V4M13.5 7.5L17 4l3.5 3.5"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 8.5l5-5 5 5M4 20h16"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-9 8.5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V5M8 9l4-4 4 4"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4h6v3"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <div class="title-row">
+      <h1 class="app-title"><svg aria-hidden="true"><use href="#i-shelf"/></svg>リンク本棚</h1>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="menuBtn" aria-label="メニュー" aria-haspopup="true" aria-expanded="false"><svg aria-hidden="true"><use href="#i-more"/></svg></button>
+    </div>
+    <nav aria-label="現在の場所"><ol class="crumbs" id="crumbs"></ol></nav>
+    <div class="tools">
+      <label class="search">
+        <span class="sr-only">名前・URLで検索</span>
+        <svg aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" id="q" placeholder="検索" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="seg" role="group" aria-label="絞り込み">
+        <button type="button" data-filter="all" aria-pressed="true">すべて</button>
+        <button type="button" data-filter="fav" aria-pressed="false" aria-label="お気に入りだけ"><span class="star">★</span></button>
+      </div>
+      <label class="sort" title="並び替え">
+        <span class="icon-btn" aria-hidden="true"><svg><use href="#i-sort"/></svg></span>
+        <select id="sort" aria-label="並び替え">
+          <option value="new">追加が新しい順</option>
+          <option value="old">追加が古い順</option>
+          <option value="name">名前 あ→ん</option>
+          <option value="name-desc">名前 ん→あ</option>
+          <option value="fav">お気に入りを先頭</option>
+        </select>
+      </label>
+    </div>
+    <div class="menu-pop" id="menuPop" hidden>
+      <button type="button" id="backupBtn"><svg aria-hidden="true"><use href="#i-download"/></svg>バックアップを保存</button>
+      <label class="file-btn" style="display:block">
+        <button type="button" tabindex="-1" style="pointer-events:none"><svg aria-hidden="true"><use href="#i-upload"/></svg>バックアップから復元</button>
+        <input type="file" id="restoreInput" accept="application/json,.json" aria-label="バックアップから復元">
+      </label>
+      <hr>
+      <p>データはこの端末のブラウザに保存されます。別の端末に移すときはバックアップを使ってください。</p>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <p class="status-line" id="status" aria-live="polite"></p>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+</main>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="fab-area">
+  <div class="fab-menu" id="fabMenu" hidden>
+    <button type="button" id="addFolderBtn"><svg aria-hidden="true"><use href="#i-folder"/></svg>フォルダーを作成</button>
+    <button type="button" id="addLinkBtn"><svg aria-hidden="true"><use href="#i-link"/></svg>リンクを追加</button>
+  </div>
+  <button class="fab" id="fab" aria-label="追加" aria-expanded="false" aria-controls="fabMenu"><svg aria-hidden="true"><use href="#i-plus"/></svg></button>
+</div>
+
+<!-- リンクの編集 -->
+<dialog id="linkDlg" aria-labelledby="linkDlgTitle">
+  <form method="dialog" id="linkForm" novalidate>
+    <div class="dlg-head">
+      <h2 id="linkDlgTitle">リンクを追加</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="lUrl">URL</label>
+        <input class="text" id="lUrl" type="url" inputmode="url" placeholder="https://example.com" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="lTitle">名前</label>
+        <input class="text" id="lTitle" type="text" placeholder="空欄ならサイトのタイトルが入ります" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="lFolder">フォルダー</label>
+        <select class="text" id="lFolder"></select>
+      </div>
+      <div class="field">
+        <span class="label" id="lCoverLabel">表紙</span>
+        <div class="choices" role="radiogroup" aria-labelledby="lCoverLabel">
+          <label><input type="radio" name="coverType" value="auto"><span>サイトの画像</span></label>
+          <label><input type="radio" name="coverType" value="color"><span>色の表紙</span></label>
+          <label><input type="radio" name="coverType" value="image"><span>画像を選ぶ</span></label>
+        </div>
+        <div class="cover-edit" id="lColorArea">
+          <div class="preview" id="lPreview" aria-hidden="true"></div>
+          <div>
+            <span class="label" style="font-size:13px;font-weight:700;display:block;margin-bottom:6px">色</span>
+            <div class="swatches" id="lSwatches" role="radiogroup" aria-label="表紙の色"></div>
+            <p class="hint note" id="lColorHint">サイトの画像が表示できないときは、この色の表紙になります。</p>
+          </div>
+        </div>
+        <div id="lImageArea" hidden>
+          <div class="crop-wrap">
+            <div class="crop-frame" id="cropFrame" aria-label="切り抜き範囲(ドラッグで位置を調整)"></div>
+            <div class="crop-side">
+              <label class="btn file-btn"><svg aria-hidden="true"><use href="#i-image"/></svg><span id="pickLabel">画像を選ぶ</span>
+                <input type="file" id="lFile" accept="image/*">
+              </label>
+              <label id="zoomRow" hidden>拡大
+                <input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1">
+              </label>
+              <span id="cropHint">ドラッグで位置を調整できます</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn danger" id="lDelete">削除</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>キャンセル</button>
+      <button type="submit" class="btn primary" id="lSave">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- フォルダーの編集 -->
+<dialog id="folderDlg" aria-labelledby="folderDlgTitle">
+  <form method="dialog" id="folderForm" novalidate>
+    <div class="dlg-head">
+      <h2 id="folderDlgTitle">フォルダーを作成</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="fName">名前</label>
+        <input class="text" id="fName" type="text" placeholder="例:料理" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <span class="label">色</span>
+        <div class="swatches" id="fSwatches" role="radiogroup" aria-label="フォルダーの色"></div>
+      </div>
+      <div class="field">
+        <label for="fParent">入れる場所</label>
+        <select class="text" id="fParent"></select>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn danger" id="fDelete">削除</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>キャンセル</button>
+      <button type="submit" class="btn primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 中身のあるフォルダーの削除 -->
+<dialog id="delDlg" aria-labelledby="delDlgTitle">
+  <form method="dialog">
+    <div class="dlg-head">
+      <h2 id="delDlgTitle">フォルダーを削除</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <p class="note" id="delText"></p>
+      <div class="delete-choices">
+        <button type="button" class="btn block" id="delLift"><svg aria-hidden="true"><use href="#i-out"/></svg><span>中身を1つ上に出す<small id="delLiftSub"></small></span></button>
+        <button type="button" class="btn block danger-solid" id="delAll"><svg aria-hidden="true"><use href="#i-trash"/></svg><span>中身ごと削除<small id="delAllSub"></small></span></button>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>やめる</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
