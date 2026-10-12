@@ -1,6 +1,6 @@
 // アプリのファイルだけをキャッシュする(ログインと本棚の表示には通信が必要)。
 // 更新がすぐ反映されるよう、通信できるときはネットワークを優先する。
-const CACHE = 'link-shelf-v2';
+const CACHE = 'link-shelf-v3';
 const FILES = [
   './',
   'index.html',
@@ -8,6 +8,7 @@ const FILES = [
   'js/store.js',
   'js/cover.js',
   'js/cloud.js',
+  'js/idle.js',
   'js/firebase-config.js',
   'manifest.json',
   'icon-180.png',

@@ -1,6 +1,7 @@
 // 画面の描画とイベント
 import * as S from './store.js';
 import { PALETTE, colorOf, hostOf, normalizeUrl, fetchMeta, screenshotUrl, createCropper } from './cover.js';
+import { createIdleTimer } from './idle.js';
 
 const LEGACY_KEY = 'linkShelf.v1'; // ログイン機能より前の、端末内の本棚
 const PREFS_KEY = 'linkShelf.prefs';
@@ -660,6 +661,21 @@ const MESSAGES = {
 };
 const message = e => MESSAGES[e && e.message] || '問題が発生しました。もう一度お試しください';
 
+// ---------- 操作しない時間でのログアウト ----------
+
+// アドレスに ?idle=1 を付けると、確認用に期限を 1 分にする
+const IDLE_TEST = new URLSearchParams(location.search).get('idle') === '1';
+const IDLE_LIMIT = IDLE_TEST ? 60e3 : 30 * 60e3;
+const IDLE_MESSAGE = `${IDLE_TEST ? '1分' : '30分'}間操作がなかったため、ログアウトしました`;
+
+const idleTimer = createIdleTimer({
+  limitMs: IDLE_LIMIT,
+  warnBeforeMs: IDLE_TEST ? 30e3 : 60e3,
+  key: 'linkShelf.lastActive',
+  onWarn: () => toast('操作がないため、まもなくログアウトします'),
+  onExpire: () => logout(IDLE_MESSAGE),
+});
+
 // ---------- ログイン画面 ----------
 
 let setupMode = false;
@@ -741,6 +757,7 @@ function enter(s) {
   session = s;
   state = S.emptyState();
   synced = S.emptyState();
+  idleTimer.start();
   setView('loading', '本棚を読み込んでいます…');
   $('menuUserId').textContent = s.userId;
   $('menuRole').hidden = s.role !== 'admin';
@@ -756,6 +773,7 @@ function enter(s) {
 
 async function logout(text = '') {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  idleTimer.stop();
   session = null;
   state = S.emptyState();
   synced = S.emptyState();
@@ -950,6 +968,13 @@ async function start() {
   const timeout = p => Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('network')), 15000))]);
   try {
     const s = await timeout(cloud.restoreSession());
+    // 同じタブで再読み込みしても、期限を過ぎていればログインし直してもらう
+    if (s && idleTimer.expiredAtStart()) {
+      await cloud.logout();
+      setupMode = false;
+      showLogin(IDLE_MESSAGE);
+      return;
+    }
     if (s) { enter(s); return; }
     setupMode = !(await timeout(cloud.setupStatus()));
     showLogin();
