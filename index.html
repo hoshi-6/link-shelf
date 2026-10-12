@@ -354,12 +354,66 @@
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  /* ---------- 画面の切り替え(読み込み中 / ログイン / 本棚) ---------- */
+  body:not([data-view="app"]) .app-only { display: none !important; }
+  body:not([data-view="login"]) #loginView { display: none; }
+  body:not([data-view="loading"]) #loadingView { display: none; }
+
+  .center-view {
+    min-height: 100vh; min-height: 100dvh; display: grid; place-items: center;
+    padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  }
+  .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loadingView p { color: var(--ink-2); font-size: 14px; margin: 16px 0 0; text-align: center; }
+
+  .login-card {
+    width: min(400px, 100%); background: var(--surface); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lift); padding: 32px 24px 24px;
+  }
+  .login-brand { text-align: center; }
+  .login-brand img { width: 64px; height: 64px; border-radius: 16px; box-shadow: var(--shadow); }
+  .login-brand h1 { margin: 12px 0 0; font-size: 22px; letter-spacing: .04em; }
+  .login-brand p { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; }
+  .login-card .field:first-of-type { margin-top: 24px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 8px; font-size: 14px; cursor: pointer; }
+  .check input { width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+  .login-card .btn.primary { width: 100%; margin-top: 16px; }
+  .form-error { color: var(--danger); font-size: 13px; margin: 12px 0 0; min-height: 0; }
+  .form-error:empty { display: none; }
+  .btn[disabled] { opacity: .6; cursor: progress; }
+
+  .menu-user { padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin: 0 0 6px; }
+  .menu-user small { display: block; font-size: 12px; color: var(--ink-2); }
+  .menu-user strong { font-size: 15px; word-break: break-all; }
+  .role-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin-left: 6px; vertical-align: 2px; background: var(--accent-soft); color: var(--accent); }
+
+  /* ユーザー管理 */
+  .user-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+  .user-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px 16px; }
+  .user-head { display: flex; align-items: center; gap: 8px; }
+  .user-head strong { flex: 1; min-width: 0; word-break: break-all; }
+  .state { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+  .state.on { background: #e3f1e5; color: #1e6b33; }
+  .state.off { background: #f7e2df; color: #9c2b1f; }
+  .state.admin { background: var(--accent-soft); color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    .state.on { background: #23402a; color: #9ad7a8; }
+    .state.off { background: #4a2622; color: #ffb4a8; }
+  }
+  .user-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .user-actions button { height: 40px; min-width: 44px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: var(--accent); font-weight: 700; font-size: 13px; }
+  .user-actions button:hover { background: var(--surface-2); }
+  .user-actions button.armed { background: var(--danger); color: #fff; }
+  .user-actions .danger-text { color: var(--danger); }
+  .user-note { font-size: 12px; color: var(--ink-2); margin: 4px 0 0; }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
 </style>
 </head>
-<body>
+<body data-view="loading">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-shelf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16M9 4v16M13.5 5l4 15"/><path d="M2 20h20"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
@@ -376,10 +430,44 @@
   <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 8.5l5-5 5 5M4 20h16"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-9 8.5"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V5M8 9l4-4 4 4"/><path d="M5 13v5.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V13"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.6.9 2.7 2.6 3 5.2"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2.5 2.5M14.5 8.5L17 11"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M9 7V4h6v3"/></symbol>
 </svg>
 
-<header class="top">
+<div class="center-view" id="loadingView">
+  <div><div class="spinner" style="margin:0 auto"></div><p id="loadingText">読み込み中…</p></div>
+</div>
+
+<div class="center-view" id="loginView">
+  <form class="login-card" id="loginForm" novalidate>
+    <div class="login-brand">
+      <img src="icon-192.png" alt="">
+      <h1>リンク本棚</h1>
+      <p id="loginLead">ユーザーIDとパスワードでログインします</p>
+    </div>
+    <div class="field">
+      <label for="loginId">ユーザーID</label>
+      <input class="text" id="loginId" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email" required>
+      <p class="hint" id="loginIdHint" hidden>英小文字・数字・「-」「_」で3〜20文字</p>
+    </div>
+    <div class="field">
+      <label for="loginPw">パスワード</label>
+      <input class="text" id="loginPw" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field" id="loginPw2Field" hidden>
+      <label for="loginPw2">パスワード(確認)</label>
+      <input class="text" id="loginPw2" type="password" autocomplete="new-password">
+      <p class="hint">8文字以上</p>
+    </div>
+    <label class="check" id="rememberRow"><input type="checkbox" id="rememberId">ユーザーIDを記憶する</label>
+    <p class="form-error" id="loginError" role="alert"></p>
+    <button type="submit" class="btn primary" id="loginSubmit">ログイン</button>
+  </form>
+</div>
+
+<header class="top app-only">
   <div class="wrap">
     <div class="title-row">
       <h1 class="app-title"><svg aria-hidden="true"><use href="#i-shelf"/></svg>リンク本棚</h1>
@@ -409,18 +497,23 @@
       </label>
     </div>
     <div class="menu-pop" id="menuPop" hidden>
+      <div class="menu-user"><small>ログイン中</small><strong id="menuUserId"></strong><span class="role-badge" id="menuRole" hidden>管理者</span></div>
+      <button type="button" id="usersBtn" hidden><svg aria-hidden="true"><use href="#i-users"/></svg>ユーザー管理</button>
+      <button type="button" id="pwBtn"><svg aria-hidden="true"><use href="#i-key"/></svg>パスワードを変更</button>
+      <button type="button" id="logoutBtn"><svg aria-hidden="true"><use href="#i-logout"/></svg>ログアウト</button>
+      <hr>
       <button type="button" id="backupBtn"><svg aria-hidden="true"><use href="#i-download"/></svg>バックアップを保存</button>
       <label class="file-btn" style="display:block">
         <button type="button" tabindex="-1" style="pointer-events:none"><svg aria-hidden="true"><use href="#i-upload"/></svg>バックアップから復元</button>
         <input type="file" id="restoreInput" accept="application/json,.json" aria-label="バックアップから復元">
       </label>
       <hr>
-      <p>データはこの端末のブラウザに保存されます。別の端末に移すときはバックアップを使ってください。</p>
+      <p>本棚はクラウドに保存され、同じユーザーIDでログインすればどの端末でも使えます。</p>
     </div>
   </div>
 </header>
 
-<main>
+<main class="app-only">
   <div class="wrap">
     <p class="status-line" id="status" aria-live="polite"></p>
     <div class="grid" id="grid"></div>
@@ -429,7 +522,7 @@
 </main>
 
 <div class="scrim" id="scrim" hidden></div>
-<div class="fab-area">
+<div class="fab-area app-only">
   <div class="fab-menu" id="fabMenu" hidden>
     <button type="button" id="addFolderBtn"><svg aria-hidden="true"><use href="#i-folder"/></svg>フォルダーを作成</button>
     <button type="button" id="addLinkBtn"><svg aria-hidden="true"><use href="#i-link"/></svg>リンクを追加</button>
@@ -544,6 +637,102 @@
     <div class="dlg-foot">
       <span class="spacer"></span>
       <button type="button" class="btn" data-close>やめる</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- パスワードの変更(本人) -->
+<dialog id="pwDlg" aria-labelledby="pwDlgTitle">
+  <form method="dialog" id="pwForm" novalidate>
+    <div class="dlg-head">
+      <h2 id="pwDlgTitle">パスワードを変更</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <input type="text" autocomplete="username" id="pwUser" hidden>
+      <div class="field">
+        <label for="pwCurrent">今のパスワード</label>
+        <input class="text" id="pwCurrent" type="password" autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label for="pwNew">新しいパスワード</label>
+        <input class="text" id="pwNew" type="password" autocomplete="new-password">
+        <p class="hint">8文字以上</p>
+      </div>
+      <div class="field">
+        <label for="pwNew2">新しいパスワード(確認)</label>
+        <input class="text" id="pwNew2" type="password" autocomplete="new-password">
+      </div>
+      <p class="form-error" id="pwError" role="alert"></p>
+    </div>
+    <div class="dlg-foot">
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>キャンセル</button>
+      <button type="submit" class="btn primary">変更する</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ユーザー管理(管理者) -->
+<dialog id="usersDlg" aria-labelledby="usersDlgTitle">
+  <form method="dialog">
+    <div class="dlg-head">
+      <h2 id="usersDlgTitle">ユーザー管理</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <button type="button" class="btn primary" id="addUserBtn" style="display:inline-flex;align-items:center;gap:8px"><svg aria-hidden="true" style="width:20px;height:20px"><use href="#i-plus"/></svg>ユーザーを追加</button>
+      <ul class="user-list" id="userList"></ul>
+      <p class="note">ほかの人の本棚の中身は、管理者でも見ることはできません。</p>
+    </div>
+  </form>
+</dialog>
+
+<!-- ユーザーの追加・パスワードの再設定(管理者) -->
+<dialog id="userFormDlg" aria-labelledby="userFormTitle">
+  <form method="dialog" id="userForm" novalidate>
+    <div class="dlg-head">
+      <h2 id="userFormTitle">ユーザーを追加</h2>
+      <button type="button" class="icon-btn" data-close aria-label="閉じる"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="ufId">ユーザーID</label>
+        <input class="text" id="ufId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <p class="hint" id="ufIdHint">英小文字・数字・「-」「_」で3〜20文字</p>
+      </div>
+      <div class="field">
+        <label for="ufPw" id="ufPwLabel">初期パスワード</label>
+        <input class="text" id="ufPw" type="password" autocomplete="new-password">
+        <p class="hint">8文字以上。本人に伝えてください(本人があとから変更できます)</p>
+      </div>
+      <div class="field">
+        <label for="ufPw2">パスワード(確認)</label>
+        <input class="text" id="ufPw2" type="password" autocomplete="new-password">
+      </div>
+      <p class="form-error" id="ufError" role="alert"></p>
+    </div>
+    <div class="dlg-foot">
+      <span class="spacer"></span>
+      <button type="button" class="btn" data-close>キャンセル</button>
+      <button type="submit" class="btn primary" id="ufSubmit">追加する</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 端末に残っている本棚の取り込み -->
+<dialog id="importDlg" aria-labelledby="importDlgTitle">
+  <form method="dialog">
+    <div class="dlg-head">
+      <h2 id="importDlgTitle">この端末の本棚を取り込みますか?</h2>
+    </div>
+    <div class="dlg-body">
+      <p class="note" id="importText"></p>
+    </div>
+    <div class="dlg-foot">
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="importNo">取り込まない</button>
+      <button type="button" class="btn primary" id="importYes">取り込む</button>
     </div>
   </form>
 </dialog>

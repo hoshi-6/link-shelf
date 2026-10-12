@@ -1,12 +1,14 @@
-// オフラインでも画面を開けるよう、アプリのファイルだけをキャッシュする。
+// アプリのファイルだけをキャッシュする(ログインと本棚の表示には通信が必要)。
 // 更新がすぐ反映されるよう、通信できるときはネットワークを優先する。
-const CACHE = 'link-shelf-v1';
+const CACHE = 'link-shelf-v2';
 const FILES = [
   './',
   'index.html',
   'js/app.js',
   'js/store.js',
   'js/cover.js',
+  'js/cloud.js',
+  'js/firebase-config.js',
   'manifest.json',
   'icon-180.png',
   'icon-192.png',
@@ -29,8 +31,9 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // 外部サイト(表紙の画像など)には手を出さない
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // ブラウザのキャッシュ(GitHub Pages は 10 分)に古いファイルが残っていても、毎回サーバーに更新を確かめる
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         if (res.ok) {
           const copy = res.clone();

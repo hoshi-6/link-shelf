@@ -240,3 +240,38 @@ export function parseBackup(text) {
   });
   return { version: 1, links, folders };
 }
+
+// ---- ログイン・同期 ----
+
+export const LOGIN_DOMAIN = 'users.link-shelf.example';
+
+export function normalizeUserId(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+// "." はメールアドレス内で世代の区切りに使うため不可
+export function isValidUserId(id) {
+  return /^[a-z0-9_-]{3,20}$/.test(id);
+}
+
+export function loginEmail(userId, gen) {
+  return `${userId}.${gen}@${LOGIN_DOMAIN}`;
+}
+
+export function userIdFromEmail(email) {
+  const m = /^([a-z0-9_-]{3,20})\.\d+@(.+)$/.exec(email || '');
+  return m && m[2] === LOGIN_DOMAIN ? m[1] : null;
+}
+
+// 前回同期した state からの差分。set は追加・変更、del は削除された id
+export function diffState(prev, next) {
+  const diff = (a, b) => {
+    const before = new Map(a.map(x => [x.id, JSON.stringify(x)]));
+    const ids = new Set(b.map(x => x.id));
+    return {
+      set: b.filter(x => before.get(x.id) !== JSON.stringify(x)),
+      del: a.filter(x => !ids.has(x.id)).map(x => x.id),
+    };
+  };
+  return { links: diff(prev.links, next.links), folders: diff(prev.folders, next.folders) };
+}

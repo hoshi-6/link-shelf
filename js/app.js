@@ -2,43 +2,49 @@
 import * as S from './store.js';
 import { PALETTE, colorOf, hostOf, normalizeUrl, fetchMeta, screenshotUrl, createCropper } from './cover.js';
 
-const KEY = 'linkShelf.v1';
+const LEGACY_KEY = 'linkShelf.v1'; // ログイン機能より前の、端末内の本棚
 const PREFS_KEY = 'linkShelf.prefs';
+const LAST_ID_KEY = 'linkShelf.lastUserId';
 const $ = id => document.getElementById(id);
 
-let state = load();
+let cloud = null;    // js/cloud.js(通信できないと読み込めない)
+let session = null;  // { userId, role, shelfId }
+let unsubscribe = null;
+let state = S.emptyState();
+let synced = S.emptyState(); // サーバーに保存済みの state(差分を求める基準)
 let prefs = loadPrefs();
-let current = folderFromHash();
+let current = null;
 let query = '';
 
 // ---------- 保存 ----------
 
-function load() {
-  let raw = null;
-  try { raw = localStorage.getItem(KEY); } catch { /* 使えない環境 */ }
-  if (!raw) return S.emptyState();
-  try { return S.parseBackup(raw); } catch {
-    try { localStorage.setItem(KEY + '.broken', raw); } catch { /* noop */ }
-    return S.emptyState();
-  }
-}
+const clone = s => JSON.parse(JSON.stringify(s));
 
+// 前回の同期からの差分をクラウドに書く。画面は先に更新し、失敗したらサーバーの状態に戻す
 function save() {
-  try {
-    localStorage.setItem(KEY, S.serialize(state));
-    return true;
-  } catch {
-    toast('保存できませんでした。容量がいっぱいです。画像の表紙を減らしてください');
-    return false;
-  }
+  if (!session) return false;
+  const diff = S.diffState(synced, state);
+  if (!diff.links.set.length && !diff.links.del.length && !diff.folders.set.length && !diff.folders.del.length) return true;
+  synced = clone(state);
+  const s = session;
+  cloud.writeDiff(s, diff).catch(e => {
+    if (session !== s) return;
+    if (e.message === 'permission') { forceLogout(); return; }
+    toast(e.message === 'network' ? '保存できませんでした。通信状態を確認してください' : '保存できませんでした');
+    resubscribe();
+  });
+  return true;
 }
 
-// 保存に失敗したら、画面の状態も保存済みの内容に戻す
 function commit() {
-  if (save()) return true;
-  state = load();
-  render();
-  return false;
+  return save();
+}
+
+function readLegacy() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    return raw ? S.parseBackup(raw) : null;
+  } catch { return null; }
 }
 
 function loadPrefs() {
@@ -101,7 +107,7 @@ function folderFromHash() {
 
 // このタブで通ってきた階層の履歴。上に戻るときはブラウザの履歴をさかのぼり、
 // スマホの「戻る」で下の階層に戻ってしまわないようにする
-const trail = [current];
+let trail = [current];
 
 function go(id) {
   const top = trail.length - 1;
@@ -631,9 +637,329 @@ $('restoreInput').addEventListener('change', async e => {
   go(null);
 });
 
+// ---------- 画面の切り替え ----------
+
+function setView(view, text) {
+  document.body.dataset.view = view;
+  if (text) $('loadingText').textContent = text;
+}
+
+const MESSAGES = {
+  'bad-credentials': 'ユーザーIDかパスワードが違います',
+  'disabled': 'このユーザーは利用停止中です。管理者に連絡してください',
+  'network': 'サーバーに接続できません。インターネット接続か、Firebase の設定を確認してください',
+  'too-many': '失敗が続いたため、しばらく操作できません。時間をおいてお試しください',
+  'weak': 'パスワードは8文字以上にしてください',
+  'invalid-id': 'ユーザーIDは英小文字・数字・「-」「_」で3〜20文字にしてください',
+  'exists': 'そのユーザーIDはすでに使われています',
+  'not-found': 'ユーザーが見つかりません',
+  'self': '自分自身には実行できません',
+  'setup-done': '初期設定はすでに完了しています。ログインしてください',
+  'permission': '権限がありません。もう一度ログインしてください',
+  'auth-config': 'Firebase の Authentication で「メール / パスワード」のログインが有効になっていません',
+};
+const message = e => MESSAGES[e && e.message] || '問題が発生しました。もう一度お試しください';
+
+// ---------- ログイン画面 ----------
+
+let setupMode = false;
+
+function showLogin(errorText = '') {
+  let lastId = null;
+  try { lastId = localStorage.getItem(LAST_ID_KEY); } catch { /* noop */ }
+  $('loginLead').textContent = setupMode ? '初期設定:最初に管理者のユーザーを作ります' : 'ユーザーIDとパスワードでログインします';
+  $('loginSubmit').textContent = setupMode ? '管理者を作成して始める' : 'ログイン';
+  $('loginPw2Field').hidden = !setupMode;
+  $('loginIdHint').hidden = !setupMode;
+  $('loginPw').autocomplete = setupMode ? 'new-password' : 'current-password';
+  $('loginId').value = setupMode ? '' : (lastId || '');
+  $('rememberId').checked = setupMode || !!lastId;
+  $('loginPw').value = '';
+  $('loginPw2').value = '';
+  $('loginError').textContent = errorText;
+  setView('login');
+  ($('loginId').value ? $('loginPw') : $('loginId')).focus();
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = S.normalizeUserId($('loginId').value);
+  const pw = $('loginPw').value;
+  const err = $('loginError');
+  err.textContent = '';
+  if (setupMode) {
+    if (!S.isValidUserId(id)) { err.textContent = MESSAGES['invalid-id']; return; }
+    if (pw.length < 8) { err.textContent = MESSAGES.weak; return; }
+    if (pw !== $('loginPw2').value) { err.textContent = '確認のパスワードが一致しません'; return; }
+  } else if (!id || !pw) {
+    err.textContent = 'ユーザーIDとパスワードを入力してください';
+    return;
+  }
+  const btn = $('loginSubmit');
+  btn.disabled = true;
+  try {
+    const s = setupMode ? await cloud.setupAdmin(id, pw) : await cloud.login(id, pw);
+    try {
+      if ($('rememberId').checked) localStorage.setItem(LAST_ID_KEY, s.userId);
+      else localStorage.removeItem(LAST_ID_KEY);
+    } catch { /* noop */ }
+    enter(s);
+  } catch (ex) {
+    if (ex.message === 'setup-done') { setupMode = false; showLogin(MESSAGES['setup-done']); return; }
+    err.textContent = message(ex);
+    $('loginPw').value = '';
+    $('loginPw').focus();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- ログイン後 ----------
+
+function subscribe(onFirst) {
+  if (unsubscribe) unsubscribe();
+  let first = true;
+  const s = session;
+  unsubscribe = cloud.subscribeShelf(s, next => {
+    if (session !== s) return;
+    state = next;
+    synced = clone(next);
+    if (first) { first = false; if (onFirst) onFirst(); }
+    else render();
+  }, code => {
+    if (session !== s) return;
+    if (code === 'permission') forceLogout();
+    else toast(MESSAGES.network);
+  });
+}
+
+function resubscribe() {
+  if (session) subscribe(() => render());
+}
+
+function enter(s) {
+  session = s;
+  state = S.emptyState();
+  synced = S.emptyState();
+  setView('loading', '本棚を読み込んでいます…');
+  $('menuUserId').textContent = s.userId;
+  $('menuRole').hidden = s.role !== 'admin';
+  $('usersBtn').hidden = s.role !== 'admin';
+  subscribe(() => {
+    current = folderFromHash();
+    trail = [current];
+    setView('app');
+    render();
+    offerImport();
+  });
+}
+
+async function logout(text = '') {
+  if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  session = null;
+  state = S.emptyState();
+  synced = S.emptyState();
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  setMenu(false);
+  setFab(false);
+  $('grid').replaceChildren();
+  await cloud.logout();
+  setupMode = false;
+  showLogin(text);
+}
+
+// パスワードの再設定や利用停止が別の端末で行われたとき
+function forceLogout() {
+  logout(MESSAGES.permission);
+}
+
+$('logoutBtn').addEventListener('click', () => logout());
+
+// ---------- 端末に残っている本棚の取り込み ----------
+
+function offerImport() {
+  const legacy = readLegacy();
+  if (!legacy || (!legacy.links.length && !legacy.folders.length)) return;
+  if (state.links.length || state.folders.length) return;
+  $('importText').textContent = `この端末には、ログイン機能を追加する前の本棚(リンク ${legacy.links.length}件・フォルダー ${legacy.folders.length}件)が保存されています。あなたの本棚に取り込みますか?`;
+  $('importDlg').showModal();
+}
+
+$('importYes').addEventListener('click', () => {
+  const legacy = readLegacy();
+  $('importDlg').close();
+  if (!legacy) return;
+  state = legacy;
+  save();
+  try {
+    localStorage.setItem(LEGACY_KEY + '.imported', localStorage.getItem(LEGACY_KEY));
+    localStorage.removeItem(LEGACY_KEY);
+  } catch { /* noop */ }
+  render();
+  toast('取り込みました');
+});
+$('importNo').addEventListener('click', () => $('importDlg').close());
+
+// ---------- パスワードの変更(本人) ----------
+
+$('pwBtn').addEventListener('click', () => {
+  setMenu(false);
+  $('pwUser').value = session.userId;
+  for (const id of ['pwCurrent', 'pwNew', 'pwNew2']) $(id).value = '';
+  $('pwError').textContent = '';
+  $('pwDlg').showModal();
+  $('pwCurrent').focus();
+});
+
+$('pwForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('pwError');
+  const cur = $('pwCurrent').value, next = $('pwNew').value;
+  if (!cur) { err.textContent = '今のパスワードを入力してください'; return; }
+  if (next.length < 8) { err.textContent = MESSAGES.weak; return; }
+  if (next !== $('pwNew2').value) { err.textContent = '確認のパスワードが一致しません'; return; }
+  const btn = e.submitter;
+  if (btn) btn.disabled = true;
+  try {
+    await cloud.changePassword(cur, next);
+    $('pwDlg').close();
+    toast('パスワードを変更しました');
+  } catch (ex) {
+    err.textContent = ex.message === 'bad-credentials' ? '今のパスワードが違います' : message(ex);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+
+// ---------- ユーザー管理(管理者) ----------
+
+async function renderUsers() {
+  const list = $('userList');
+  list.replaceChildren(el('li', 'user-note', '読み込み中…'));
+  let members;
+  try { members = await cloud.listMembers(); } catch (ex) {
+    list.replaceChildren(el('li', 'user-note', message(ex)));
+    return;
+  }
+  list.replaceChildren(...members.map(m => {
+    const li = el('li', 'user-item');
+    const head = el('div', 'user-head');
+    const isMe = m.userId === session.userId;
+    head.append(el('strong', null, m.userId + (isMe ? '(あなた)' : '')));
+    if (m.role === 'admin') head.append(el('span', 'state admin', '管理者'));
+    head.append(m.disabled ? el('span', 'state off', '停止中') : el('span', 'state on', '利用中'));
+    li.append(head);
+    if (isMe) {
+      li.append(el('p', 'user-note', '自分のパスワードは、メニューの「パスワードを変更」から変えられます。'));
+      return li;
+    }
+    const actions = el('div', 'user-actions');
+    const reset = el('button', null, 'パスワードを再設定');
+    reset.type = 'button';
+    reset.addEventListener('click', () => openUserForm(m.userId));
+    const toggle = el('button', null, m.disabled ? '利用を再開' : '利用停止');
+    toggle.type = 'button';
+    toggle.addEventListener('click', async () => {
+      toggle.disabled = true;
+      try {
+        await cloud.setDisabled(m.userId, !m.disabled);
+        toast(m.disabled ? `${m.userId} の利用を再開しました` : `${m.userId} を利用停止にしました`);
+        renderUsers();
+      } catch (ex) { toast(message(ex)); toggle.disabled = false; }
+    });
+    const del = el('button', 'danger-text', '削除');
+    del.type = 'button';
+    armable(del, '削除', async () => {
+      try {
+        await cloud.deleteMember(m.userId);
+        toast(`${m.userId} を削除しました`);
+        renderUsers();
+      } catch (ex) { toast(message(ex)); }
+    });
+    actions.append(reset, toggle, del);
+    li.append(actions, el('p', 'user-note', '削除すると、このユーザーの本棚は開けなくなります。'));
+    return li;
+  }));
+}
+
+$('usersBtn').addEventListener('click', () => {
+  setMenu(false);
+  $('usersDlg').showModal();
+  renderUsers();
+});
+
+let userFormTarget = null; // null = 追加、userId = パスワードの再設定
+
+function openUserForm(userId) {
+  userFormTarget = userId;
+  $('userFormTitle').textContent = userId ? 'パスワードを再設定' : 'ユーザーを追加';
+  $('ufSubmit').textContent = userId ? '再設定する' : '追加する';
+  $('ufPwLabel').textContent = userId ? '新しいパスワード' : '初期パスワード';
+  $('ufId').value = userId || '';
+  $('ufId').readOnly = !!userId;
+  $('ufIdHint').hidden = !!userId;
+  $('ufPw').value = '';
+  $('ufPw2').value = '';
+  $('ufError').textContent = '';
+  $('userFormDlg').showModal();
+  (userId ? $('ufPw') : $('ufId')).focus();
+}
+
+$('addUserBtn').addEventListener('click', () => openUserForm(null));
+
+$('userForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('ufError');
+  const id = S.normalizeUserId($('ufId').value);
+  const pw = $('ufPw').value;
+  if (!userFormTarget && !S.isValidUserId(id)) { err.textContent = MESSAGES['invalid-id']; return; }
+  if (pw.length < 8) { err.textContent = MESSAGES.weak; return; }
+  if (pw !== $('ufPw2').value) { err.textContent = '確認のパスワードが一致しません'; return; }
+  const btn = $('ufSubmit');
+  btn.disabled = true;
+  try {
+    if (userFormTarget) {
+      await cloud.resetPassword(userFormTarget, pw);
+      toast(`${userFormTarget} のパスワードを再設定しました`);
+    } else {
+      await cloud.createMember(id, pw);
+      toast(`${id} を追加しました`);
+    }
+    $('userFormDlg').close();
+    renderUsers();
+  } catch (ex) {
+    err.textContent = message(ex);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ---------- 起動 ----------
 
-render();
+async function start() {
+  setView('loading', '読み込み中…');
+  try {
+    cloud = await import('./cloud.js');
+    cloud.initCloud();
+  } catch {
+    document.querySelector('#loadingView .spinner').hidden = true;
+    setView('loading', 'インターネットに接続してから、開き直してください');
+    return;
+  }
+  // 応答が無いまま待たせないよう、15 秒で通信エラー扱いにする
+  const timeout = p => Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('network')), 15000))]);
+  try {
+    const s = await timeout(cloud.restoreSession());
+    if (s) { enter(s); return; }
+    setupMode = !(await timeout(cloud.setupStatus()));
+    showLogin();
+  } catch (ex) {
+    setupMode = false;
+    showLogin(message(ex));
+  }
+}
+
+start();
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => { /* オフライン対応なしで動かす */ });
